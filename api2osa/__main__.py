@@ -71,8 +71,10 @@ def _cmd_read(args: argparse.Namespace) -> int:
 
     y_label = args.y_unit
     print(f"Pontos: {spec.n_points}")
-    print(f"λ [{spec.x_unit}]: {spec.wavelength_nm.min():.3f} … {spec.wavelength_nm.max():.3f}")
-    print(f"I [{y_label}]: {spec.intensity.min():.3f} … {spec.intensity.max():.3f}")
+    print(
+        f"wl [{spec.x_unit}]: {spec.wavelength_nm.min():.3f} .. {spec.wavelength_nm.max():.3f}"
+    )
+    print(f"I [{y_label}]: {spec.intensity.min():.3f} .. {spec.intensity.max():.3f}")
     if spec.warnings:
         print("Avisos:", "; ".join(spec.warnings))
 

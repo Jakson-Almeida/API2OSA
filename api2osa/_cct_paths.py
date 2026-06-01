@@ -13,6 +13,10 @@ _BUNDLED_NET48 = _SDK_DIR / "net48"
 _DEFAULT_INSTALL = Path(
     r"C:\Program Files\Thorlabs\Compact Spectrograph"
 )
+_THORSPECTRA = Path(r"C:\Program Files\Thorlabs\ThorSpectra")
+_THORSPECTRA_PY_CCT = (
+    _THORSPECTRA / "Examples" / "CompactSpectrometer" / "Python" / "pyCCT" / "net48"
+)
 
 
 def _net48_has_driver_dll(folder: Path) -> bool:
@@ -34,6 +38,9 @@ def resolve_net48_dir() -> Path:
 
     if _BUNDLED_NET48.is_dir():
         candidates.append(_BUNDLED_NET48)
+
+    if _THORSPECTRA_PY_CCT.is_dir():
+        candidates.append(_THORSPECTRA_PY_CCT)
 
     if _DEFAULT_INSTALL.is_dir():
         for sub in ("net48", "NET48", "bin", "Bin"):

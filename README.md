@@ -40,15 +40,17 @@ $env:FTSLIB_PATH = "D:\caminho\para\FTSLib.dll"   # opcional
 
 ### CCT11 — Compact Spectrograph (.NET)
 
-1. Instale o software/SDK do espectrógrafo compacto (Thorlabs).
-2. Copie a pasta **net48** (com `Thorlabs.ManagedDevice.CompactSpectrographDriver.dll` e dependências Microsoft) para:
+Com **ThorSpectra** instalado, a API deteta automaticamente as DLLs em:
 
-   `sdk\net48\`
+`C:\Program Files\Thorlabs\ThorSpectra\Examples\CompactSpectrometer\Python\pyCCT\net48`
 
-3. Ou defina:
+Alternativas:
+
+1. Copie essa pasta **net48** para `sdk\net48\` neste repositório.
+2. Ou defina (pasta **net48** completa — não use só `ThorSpectra\`, faltam DLLs `Microsoft.Extensions.*`):
 
 ```powershell
-$env:CCT_SDK_PATH = "C:\caminho\para\pasta\net48"
+$env:CCT_SDK_PATH = "C:\Program Files\Thorlabs\ThorSpectra\Examples\CompactSpectrometer\Python\pyCCT\net48"
 ```
 
 ---

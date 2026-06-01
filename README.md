@@ -68,42 +68,94 @@ pip install -r requirements.txt
 
 ## 3. Uso no terminal
 
-### OSA203 (padrão)
+Forma geral:
+
+```text
+python -m api2osa [--device osa|cct] [opções globais] <comando> [opções do comando]
+```
+
+Ative o ambiente antes: `.\.venv\Scripts\activate`
+
+### Comandos disponíveis
+
+| Comando | OSA203 | CCT11 | Descrição |
+|---------|:------:|:-----:|-----------|
+| `info` | sim | sim | Modelo e ID/série; liga e desliga o instrumento |
+| `read` | sim | sim | Mede um espectro e mostra **resumo** no terminal |
+| `echo` | sim | sim | Mede e imprime **todos os pontos** em stdout (pipe/ficheiro) |
+| `list` | — | sim | Lista IDs dos CCT ligados (sem medição) |
+
+### Opções globais
+
+| Opção | Padrão | Descrição |
+|-------|--------|-----------|
+| `--device osa` \| `cct` | `osa` | Tipo de instrumento |
+| `--device-id ID` | primeiro CCT | ID exato do CCT (`list` mostra os IDs) |
+| `--autogain` | desligado | [OSA] Autogain na ligação |
+| `--resolution low` \| `high` | `low` | [OSA] Resolução |
+| `--sensitivity TEXTO` | `low` | [OSA] Sensibilidade |
+
+### Opções de medição (`read` e `echo`)
+
+| Opção | Padrão | Descrição |
+|-------|--------|-----------|
+| `-n`, `--averaging N` | `1` | Média de N espectros (OSA) ou frames (CCT) |
+| `--x-unit` | `nm (vac)` / `nm` | Rótulo do eixo X |
+| `--y-unit` | `dBm` / `counts` | Rótulo do eixo Y |
+| `--apodization` | `None` | [OSA] Apodização |
+| `--exposure-ms MS` | atual | [CCT] Exposição manual em ms |
+
+### Opções só do `read`
+
+| Opção | Descrição |
+|-------|-----------|
+| `-o`, `--output FILE` | Gravar CSV com comentário `#` no topo |
+
+### Opções só do `echo`
+
+| Opção | Descrição |
+|-------|-----------|
+| `--no-header` | Só dados numéricos (sem linha `wavelength,...`) |
+| `--format csv` \| `tsv` \| `plain` | Formato de cada linha (padrão: `csv`) |
+
+`read` mostra resumo (nº de pontos, intervalo de λ e intensidade). **`echo`** envia cada par `(wavelength, intensidade)` para **stdout**; *A adquirir espectro...* e avisos vão para **stderr**, para poder usar `>` ou pipes.
+
+### Exemplos — OSA203
 
 ```powershell
 python -m api2osa info
 python -m api2osa read
 python -m api2osa read -o espectro_osa.csv -n 5 --y-unit dBm
 python -m api2osa read --autogain --resolution high
+
+# Imprimir espectro no terminal ou guardar
+python -m api2osa echo
+python -m api2osa echo > espectro_osa.csv
+python -m api2osa echo --format plain -n 3 --no-header
 ```
 
-### CCT11
+### Exemplos — CCT11
 
 ```powershell
 python -m api2osa --device cct list
 python -m api2osa --device cct info
+python -m api2osa --device cct info --device-id CCT11-M01257363
+
 python -m api2osa --device cct read
 python -m api2osa --device cct read -o espectro_cct.csv -n 10 --exposure-ms 50
-python -m api2osa --device cct info --device-id "SEU_ID_AQUI"
+
+python -m api2osa --device cct echo
+python -m api2osa --device cct echo > espectro_cct.csv
+python -m api2osa --device cct echo --no-header | Select-Object -First 5
+python -m api2osa --device cct echo --format tsv
 ```
 
-### Imprimir espectro no terminal (`echo`)
-
-O comando **`echo`** envia cada ponto para **stdout** (como `echo`, mas lê o instrumento). Mensagens de progresso vão para **stderr**, para poder redirecionar ou encadear:
+### Ajuda por comando
 
 ```powershell
-# Ver no terminal
-python -m api2osa --device cct echo
-
-# Guardar em ficheiro (só dados)
-python -m api2osa --device cct echo > espectro.csv
-
-# Primeiras 5 linhas de dados (sem cabeçalho)
-python -m api2osa --device cct echo --no-header | Select-Object -First 5
-
-# Formato TSV ou colunas separadas por espaço
-python -m api2osa --device cct echo --format tsv
-python -m api2osa --device osa echo --format plain -n 3
+python -m api2osa --help
+python -m api2osa read --help
+python -m api2osa echo --help
 ```
 
 ---
@@ -142,6 +194,8 @@ Ambos devolvem o mesmo tipo `SpectrumResult` (`wavelength_nm`, `intensity`, `war
 ```text
 API2OSA/
   api2osa/
+    __main__.py     # CLI (info, read, echo, list)
+    cli_output.py   # Formato terminal/CSV
     osa.py          # OSA203
     cct.py          # CCT11
     spectrum.py     # SpectrumResult
@@ -161,7 +215,9 @@ API2OSA/
 | `FTSLib.dll não encontrada` | Instalar ThorSpectra ou `FTSLIB_PATH` |
 | `DLLs do Compact Spectrograph não encontradas` | Instalar SDK CCT, copiar `net48` ou `CCT_SDK_PATH` |
 | `No OSA found` | USB OSA; fechar ThorSpectra |
-| `Nenhum espectrógrafo CCT encontrado` | USB/rede; app Thorlabs CCT fechada; experimentar `list` |
+| `Nenhum espectrógrafo CCT encontrado` | USB/rede; app Thorlabs fechada; `python -m api2osa --device cct list` |
+| `O acesso à porta 'COMx' foi negado` | [CCT] Fechar ThorSpectra/outra app que use a COM do CCT |
+| `CCT_SDK_PATH` / DLL incompleta | Usar pasta `...\pyCCT\net48` completa (ver secção 1) |
 | Erro `pythonnet` / `clr` | `pip install pythonnet`; usar Python 64-bit no Windows |
 | `has already been initialized` | Uma ligação OSA por processo Python |
 

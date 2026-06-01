@@ -1,5 +1,7 @@
-"""API mínima para leitura de espectros Thorlabs OSA 20x (ex.: OSA203)."""
+"""API para leitura de espectros Thorlabs (OSA 20x e CCT11)."""
 
-from api2osa.device import OSA203, SpectrumResult
+from api2osa.cct import CCT11
+from api2osa.osa import OSA203
+from api2osa.spectrum import SpectrumResult
 
-__all__ = ["OSA203", "SpectrumResult"]
+__all__ = ["CCT11", "OSA203", "SpectrumResult"]

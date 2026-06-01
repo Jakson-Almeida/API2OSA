@@ -1,50 +1,59 @@
 # API2OSA
 
-API mínima em Python para **ler espectros** do analisador óptico **Thorlabs OSA203** (série OSA 20x), em **Windows**, a partir do terminal.
+API mínima em Python para **ler espectros** de instrumentos Thorlabs em **Windows**, a partir do terminal:
 
-Não inclui interface gráfica nem processamento de sensores em fibra — apenas conectar, medir e exportar dados.
+| Instrumento | Flag CLI | SDK |
+|-------------|----------|-----|
+| **OSA203** (série OSA 20x) | `--device osa` (padrão) | pyOSA + `FTSLib.dll` (ThorSpectra) |
+| **CCT11** (Compact Spectrograph) | `--device cct` | pyCCT + DLLs .NET (`net48`) |
+
+Sem interface gráfica — apenas conectar, medir e exportar dados.
 
 ---
 
 ## Requisitos
 
-| Item | Detalhe |
-|------|---------|
-| SO | Windows 10/11 (64-bit) |
-| Python | 3.10 ou superior |
-| Hardware | OSA203 ligado por **USB** |
-| Software Thorlabs | **ThorSpectra** (instala `FTSLib.dll` e drivers USB) |
+| Item | OSA203 | CCT11 |
+|------|--------|-------|
+| SO | Windows 10/11 (64-bit) | Idem |
+| Python | 3.10+ | 3.10+ |
+| Ligação | USB | USB ou Ethernet (conforme modelo) |
+| Software Thorlabs | **ThorSpectra** | **Compact Spectrograph** SDK / app CCT |
 
-O pyOSA já está incluído em `sdk/pyOSA/`. **Não** é preciso instalar pyOSA à parte; só a DLL do Thorlabs.
+Dependências Python: `numpy`, `pythonnet` (só necessário para CCT).
+
+O código Python (`sdk/pyOSA`, `sdk/pyCCT.py`) já vem no repositório. As **DLLs do fabricante** instalam-se à parte.
 
 ---
 
-## 1. Instalar ThorSpectra (FTSLib)
+## 1. Instalar SDKs Thorlabs
 
-1. Descarregue o software do seu instrumento na página Thorlabs (OSA / ThorSpectra), ou use o instalador que veio com o OSA.
-2. Instale com as opções por defeito. A DLL costuma ficar em:
+### OSA203 — ThorSpectra (FTSLib)
 
-   `C:\Program Files\Thorlabs\ThorSpectra\FTSLib.dll`
-
-3. Ligue o OSA203 por USB e confirme no **Gestor de dispositivos** que o Windows reconhece o equipamento (sem instalação, abra o ThorSpectra uma vez para validar).
-
-**Alternativa:** copie `FTSLib.dll` (e ficheiros `.dll` adjacentes do mesmo diretório, se existirem) para:
-
-`sdk\FTSLib\FTSLib.dll`
-
-neste repositório. Essa pasta está no `.gitignore` (licença Thorlabs).
-
-**Variável opcional** se a DLL estiver noutro sítio:
+1. Instale ThorSpectra (instalador Thorlabs do OSA).
+2. DLL habitual: `C:\Program Files\Thorlabs\ThorSpectra\FTSLib.dll`
+3. Ou copie para `sdk\FTSLib\FTSLib.dll` (pasta no `.gitignore`).
 
 ```powershell
-$env:FTSLIB_PATH = "D:\caminho\para\FTSLib.dll"
+$env:FTSLIB_PATH = "D:\caminho\para\FTSLib.dll"   # opcional
+```
+
+### CCT11 — Compact Spectrograph (.NET)
+
+1. Instale o software/SDK do espectrógrafo compacto (Thorlabs).
+2. Copie a pasta **net48** (com `Thorlabs.ManagedDevice.CompactSpectrographDriver.dll` e dependências Microsoft) para:
+
+   `sdk\net48\`
+
+3. Ou defina:
+
+```powershell
+$env:CCT_SDK_PATH = "C:\caminho\para\pasta\net48"
 ```
 
 ---
 
 ## 2. Ambiente Python
-
-Na pasta do projeto:
 
 ```powershell
 cd C:\Users\DELL\Documents\GitHub\API2OSA
@@ -57,34 +66,30 @@ pip install -r requirements.txt
 
 ## 3. Uso no terminal
 
-**Informação do instrumento** (liga, lê modelo/série, desliga):
+### OSA203 (padrão)
 
 ```powershell
 python -m api2osa info
-```
-
-**Um espectro** (imprime resumo no ecrã):
-
-```powershell
 python -m api2osa read
+python -m api2osa read -o espectro_osa.csv -n 5 --y-unit dBm
+python -m api2osa read --autogain --resolution high
 ```
 
-**Gravar CSV:**
+### CCT11
 
 ```powershell
-python -m api2osa read -o espectro.csv
-```
-
-**Opções úteis:**
-
-```powershell
-python -m api2osa read -n 5 --y-unit dBm --resolution low --sensitivity low
-python -m api2osa read --autogain
+python -m api2osa --device cct list
+python -m api2osa --device cct info
+python -m api2osa --device cct read
+python -m api2osa --device cct read -o espectro_cct.csv -n 10 --exposure-ms 50
+python -m api2osa --device cct info --device-id "SEU_ID_AQUI"
 ```
 
 ---
 
 ## 4. Uso em código Python
+
+**OSA203:**
 
 ```python
 from api2osa import OSA203
@@ -92,8 +97,22 @@ from api2osa import OSA203
 with OSA203.connect() as osa:
     spec = osa.read_spectrum(spectrum_averaging=1)
     print(spec.model, spec.n_points)
-    print(spec.wavelength_nm[:5], spec.intensity[:5])
 ```
+
+**CCT11:**
+
+```python
+from api2osa import CCT11
+
+for dev_id in CCT11.list_devices():
+    print(dev_id)
+
+with CCT11.connect() as cct:
+    spec = cct.read_spectrum(hardware_averaging=5, exposure_ms=100.0)
+    print(cct.device_id, spec.n_points)
+```
+
+Ambos devolvem o mesmo tipo `SpectrumResult` (`wavelength_nm`, `intensity`, `warnings`, …).
 
 ---
 
@@ -101,9 +120,15 @@ with OSA203.connect() as osa:
 
 ```text
 API2OSA/
-  api2osa/          # API e CLI
-  sdk/pyOSA/        # SDK Python Thorlabs (vendored)
-  requirements.txt
+  api2osa/
+    osa.py          # OSA203
+    cct.py          # CCT11
+    spectrum.py     # SpectrumResult
+  sdk/
+    pyOSA/          # OSA (vendored)
+    pyCCT.py        # CCT (vendored)
+    FTSLib/         # FTSLib.dll (local, gitignored)
+    net48/          # DLLs .NET CCT (gitignored)
 ```
 
 ---
@@ -112,20 +137,21 @@ API2OSA/
 
 | Sintoma | O que fazer |
 |---------|-------------|
-| `FTSLib.dll não encontrada` | Instalar ThorSpectra ou definir `FTSLIB_PATH` |
-| `No OSA found` | USB, cabo, alimentação; fechar ThorSpectra se estiver a usar o OSA |
-| `has already been initialized` | Só uma ligação por processo; feche outros scripts ou reinicie o Python |
-| `Reference Warmup` | Aguarde aquecimento do laser de referência; a API ignora este aviso por defeito |
-| Erro de versão da DLL | ThorSpectra **3.31+** (exigido pelo pyOSA) |
+| `FTSLib.dll não encontrada` | Instalar ThorSpectra ou `FTSLIB_PATH` |
+| `DLLs do Compact Spectrograph não encontradas` | Instalar SDK CCT, copiar `net48` ou `CCT_SDK_PATH` |
+| `No OSA found` | USB OSA; fechar ThorSpectra |
+| `Nenhum espectrógrafo CCT encontrado` | USB/rede; app Thorlabs CCT fechada; experimentar `list` |
+| Erro `pythonnet` / `clr` | `pip install pythonnet`; usar Python 64-bit no Windows |
+| `has already been initialized` | Uma ligação OSA por processo Python |
 
 ---
 
 ## Evolução (ESP32 / Raspberry Pi)
 
-O OSA203 **não** fala UART/SCPI: o host Windows mantém o USB e a `FTSLib.dll`. Microcontroladores podem pedir espectros a um **serviço** neste PC (fase futura), com comandos simples em texto ou JSON.
+OSA e CCT exigem **host Windows** com as DLLs Thorlabs. Microcontroladores podem consumir espectros via um **serviço** neste PC (fase futura).
 
 ---
 
 ## Licença
 
-Código deste repositório: MIT (ver `LICENSE` se existir). `sdk/pyOSA` e `FTSLib.dll` são da Thorlabs — respeite a licença e redistribuição do fabricante.
+Código deste repositório: MIT. `sdk/pyOSA`, `sdk/pyCCT.py` e DLLs Thorlabs — respeitar licença do fabricante.

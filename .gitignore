@@ -6,3 +6,5 @@ __pycache__/
 .Python
 sdk/FTSLib/*
 !sdk/FTSLib/.gitkeep
+sdk/net48/*
+!sdk/net48/.gitkeep

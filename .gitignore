@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.csv
+*.spf2
+.Python
+sdk/FTSLib/*
+!sdk/FTSLib/.gitkeep

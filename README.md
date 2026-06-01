@@ -87,6 +87,25 @@ python -m api2osa --device cct read -o espectro_cct.csv -n 10 --exposure-ms 50
 python -m api2osa --device cct info --device-id "SEU_ID_AQUI"
 ```
 
+### Imprimir espectro no terminal (`echo`)
+
+O comando **`echo`** envia cada ponto para **stdout** (como `echo`, mas lê o instrumento). Mensagens de progresso vão para **stderr**, para poder redirecionar ou encadear:
+
+```powershell
+# Ver no terminal
+python -m api2osa --device cct echo
+
+# Guardar em ficheiro (só dados)
+python -m api2osa --device cct echo > espectro.csv
+
+# Primeiras 5 linhas de dados (sem cabeçalho)
+python -m api2osa --device cct echo --no-header | Select-Object -First 5
+
+# Formato TSV ou colunas separadas por espaço
+python -m api2osa --device cct echo --format tsv
+python -m api2osa --device osa echo --format plain -n 3
+```
+
 ---
 
 ## 4. Uso em código Python

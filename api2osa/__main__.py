@@ -1,4 +1,4 @@
-"""CLI: python -m api2osa [--device osa|cct] info | read | list."""
+"""CLI: python -m api2osa [--device osa|cct] info | read | echo | list."""
 
 from __future__ import annotations
 
@@ -8,6 +8,12 @@ from pathlib import Path
 from typing import Protocol
 
 from api2osa.cct import CCT11
+from api2osa.cli_output import (
+    print_spectrum_echo,
+    print_spectrum_summary,
+    print_warnings_stderr,
+    write_spectrum_csv,
+)
 from api2osa.osa import OSA203
 from api2osa.spectrum import SpectrumResult
 
@@ -56,6 +62,52 @@ def _read_kwargs(args: argparse.Namespace) -> dict[str, object]:
     return kwargs
 
 
+def _apply_default_units(args: argparse.Namespace) -> None:
+    if args.x_unit is None:
+        args.x_unit = "nm (vac)" if args.device == "osa" else "nm"
+    if args.y_unit is None:
+        args.y_unit = "dBm" if args.device == "osa" else "counts"
+
+
+def _add_spectrum_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "-n",
+        "--averaging",
+        type=int,
+        default=1,
+        metavar="N",
+        help="Média de N espectros/frames (padrão: 1).",
+    )
+    parser.add_argument(
+        "--x-unit",
+        default=None,
+        help="Rótulo do eixo X (padrão: nm (vac) para OSA, nm para CCT).",
+    )
+    parser.add_argument(
+        "--y-unit",
+        default=None,
+        help="Rótulo/unidade do eixo Y (padrão: dBm para OSA, counts para CCT).",
+    )
+    parser.add_argument(
+        "--apodization",
+        default="None",
+        help="[OSA] Apodização (padrão: None).",
+    )
+    parser.add_argument(
+        "--exposure-ms",
+        type=float,
+        default=None,
+        metavar="MS",
+        help="[CCT] Tempo de exposição manual em ms.",
+    )
+
+
+def _acquire(args: argparse.Namespace) -> SpectrumResult:
+    with _connect(args) as inst:
+        print("A adquirir espectro...", file=sys.stderr, flush=True)
+        return inst.read_spectrum(**_read_kwargs(args))
+
+
 def _cmd_info(args: argparse.Namespace) -> int:
     with _connect(args) as inst:
         print(f"Instrumento: {args.device}")
@@ -65,31 +117,27 @@ def _cmd_info(args: argparse.Namespace) -> int:
 
 
 def _cmd_read(args: argparse.Namespace) -> int:
-    with _connect(args) as inst:
-        print("A adquirir espectro...", flush=True)
-        spec = inst.read_spectrum(**_read_kwargs(args))
-
+    spec = _acquire(args)
     y_label = args.y_unit
-    print(f"Pontos: {spec.n_points}")
-    print(
-        f"wl [{spec.x_unit}]: {spec.wavelength_nm.min():.3f} .. {spec.wavelength_nm.max():.3f}"
-    )
-    print(f"I [{y_label}]: {spec.intensity.min():.3f} .. {spec.intensity.max():.3f}")
-    if spec.warnings:
-        print("Avisos:", "; ".join(spec.warnings))
+    print_spectrum_summary(spec, y_label=y_label)
 
     if args.output:
         out = Path(args.output)
-        with out.open("w", encoding="utf-8") as fh:
-            fh.write(
-                f"# device={args.device}, model={spec.model}, serial={spec.serial_number}, "
-                f"x_unit={spec.x_unit}, y_unit={spec.y_unit}\n"
-            )
-            fh.write(f"wavelength,{y_label}\n")
-            for wl, intensity in zip(spec.wavelength_nm, spec.intensity, strict=True):
-                fh.write(f"{wl},{intensity}\n")
+        write_spectrum_csv(out, spec, device=args.device, y_label=y_label)
         print(f"Gravado: {out.resolve()}")
 
+    return 0
+
+
+def _cmd_echo(args: argparse.Namespace) -> int:
+    spec = _acquire(args)
+    print_warnings_stderr(spec)
+    print_spectrum_echo(
+        spec,
+        y_label=args.y_unit,
+        header=not args.no_header,
+        fmt=args.format,
+    )
     return 0
 
 
@@ -144,57 +192,44 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("info", help="Mostrar modelo e ID/série.")
     sub.add_parser("list", help="[CCT] Listar dispositivos disponíveis.")
 
-    read_p = sub.add_parser("read", help="Adquirir um espectro.")
+    read_p = sub.add_parser("read", help="Adquirir um espectro (resumo no terminal).")
     read_p.add_argument(
         "-o",
         "--output",
         metavar="FILE",
         help="Gravar CSV (wavelength, intensidade).",
     )
-    read_p.add_argument(
-        "-n",
-        "--averaging",
-        type=int,
-        default=1,
-        metavar="N",
-        help="Média de N espectros/frames (padrão: 1).",
+    _add_spectrum_args(read_p)
+
+    echo_p = sub.add_parser(
+        "echo",
+        help="Adquirir e imprimir o espectro em stdout (para pipe/redirecionamento).",
     )
-    read_p.add_argument(
-        "--x-unit",
-        default=None,
-        help="Rótulo do eixo X (padrão: nm (vac) para OSA, nm para CCT).",
+    _add_spectrum_args(echo_p)
+    echo_p.add_argument(
+        "--no-header",
+        action="store_true",
+        help="Não imprimir linha de cabeçalho (só dados).",
     )
-    read_p.add_argument(
-        "--y-unit",
-        default=None,
-        help="Rótulo/unidade do eixo Y (padrão: dBm para OSA, counts para CCT).",
-    )
-    read_p.add_argument(
-        "--apodization",
-        default="None",
-        help="[OSA] Apodização (padrão: None).",
-    )
-    read_p.add_argument(
-        "--exposure-ms",
-        type=float,
-        default=None,
-        metavar="MS",
-        help="[CCT] Tempo de exposição manual em ms.",
+    echo_p.add_argument(
+        "--format",
+        choices=("csv", "tsv", "plain"),
+        default="csv",
+        help="Formato das linhas (padrão: csv).",
     )
 
     args = parser.parse_args(argv)
 
-    if args.command == "read":
-        if args.x_unit is None:
-            args.x_unit = "nm (vac)" if args.device == "osa" else "nm"
-        if args.y_unit is None:
-            args.y_unit = "dBm" if args.device == "osa" else "counts"
+    if args.command in ("read", "echo"):
+        _apply_default_units(args)
 
     try:
         if args.command == "info":
             return _cmd_info(args)
         if args.command == "read":
             return _cmd_read(args)
+        if args.command == "echo":
+            return _cmd_echo(args)
         if args.command == "list":
             return _cmd_list(args)
     except FileNotFoundError as e:
